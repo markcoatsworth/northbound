@@ -8,21 +8,28 @@
   </head>
   <body>
     <div id="game-root">
-      <canvas id="game-canvas"></canvas>
-      <div id="hud">
-        <div id="fps"></div>
-      </div>
-      <div id="controls">
-        <div id="dpad">
-          <button class="dpad-btn dpad-up" data-action="up" aria-label="Up">▲</button>
-          <button class="dpad-btn dpad-left" data-action="left" aria-label="Left">◀</button>
-          <button class="dpad-btn dpad-right" data-action="right" aria-label="Right">▶</button>
-          <button class="dpad-btn dpad-down" data-action="down" aria-label="Down">▼</button>
+      <div id="stage">
+        <div id="screen">
+          <canvas id="game-canvas"></canvas>
+          <div id="hud">
+            <div id="fps"></div>
+          </div>
         </div>
-        <div id="action-buttons">
-          <button class="action-btn action-c" data-action="c" aria-label="C">C</button>
-          <button class="action-btn action-x" data-action="x" aria-label="X">X</button>
-          <button class="action-btn action-z" data-action="z" aria-label="Z">Z</button>
+        <div
+          id="controls"
+          title="Keyboard: Arrows / WASD to move · Up / Space to jump · Z X C to fire"
+        >
+          <div id="action-buttons">
+            <button class="action-btn" data-action="z" aria-label="Z">Z</button>
+            <button class="action-btn" data-action="x" aria-label="X">X</button>
+            <button class="action-btn" data-action="c" aria-label="C">C</button>
+          </div>
+          <div id="arrow-buttons">
+            <button class="arrow-btn" data-action="up" aria-label="Up">▲</button>
+            <button class="arrow-btn" data-action="down" aria-label="Down">▼</button>
+            <button class="arrow-btn" data-action="left" aria-label="Left">◀</button>
+            <button class="arrow-btn" data-action="right" aria-label="Right">▶</button>
+          </div>
         </div>
       </div>
     </div>

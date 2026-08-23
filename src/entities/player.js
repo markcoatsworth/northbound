@@ -10,16 +10,83 @@ const FAST_FALL_ACCEL = 600 * ART_SCALE;
 // Z/X/C are three distinct weapons, each with its own fire-rate cooldown.
 const WEAPON_COOLDOWNS = { z: 0.22, x: 0.5, c: 0.9 };
 
+export const PLAYER_MAX_HEALTH = 5;
+const INVULN_TIME = 1.1;
+const KNOCKBACK_DISTANCE = 10 * ART_SCALE;
+const KNOCKBACK_LIFT = 90 * ART_SCALE;
+
+const PIXEL = ART_SCALE;
+const FRAME_DURATION = 0.16;
+const LEG_ROW_START = 10;
+
+// 12x16 pixel-art survivor: hair, skin, a blue jacket, denim, boots. Rows
+// mirror left/right around the body centerline, same technique as the
+// zombie sprite, so the walk cycle can flip just the leg rows.
+const PLAYER_ROWS = [
+  "..oHHHHHHo..",
+  ".oHSSSSSSHo.",
+  ".oSESSSSESo.",
+  ".oSSSSSSSSo.",
+  "..oKJJJJKo..",
+  "SSJJJJJJJJSS",
+  "S.JJJJJJJJ.S",
+  "..JJJJJJJJ..",
+  ".oJKKJJKKJo.",
+  ".oJ.KJJK.Jo.",
+  "..oTTTTTTo..",
+  ".oPP.PP.PPo.",
+  ".oP.PPPP.Po.",
+  "..P.P..P.P..",
+  ".oBB.BB.BBo.",
+  "..oB....Bo..",
+];
+
+const PLAYER_PALETTE = {
+  H: "#2e2013",
+  S: "#e0a878",
+  E: "#1c1712",
+  J: "#3a6ea5",
+  K: "#274a73",
+  T: "#1a1a1a",
+  P: "#2a3a4a",
+  B: "#141414",
+  o: "#0f0c09",
+};
+
+const reverseRow = (row) => row.split("").reverse().join("");
+
+// Frame B alternates the leg pose for a walk cycle.
+const PLAYER_FRAMES = [
+  PLAYER_ROWS,
+  PLAYER_ROWS.map((row, i) => (i >= LEG_ROW_START ? reverseRow(row) : row)),
+];
+
 export class Player extends Entity {
   constructor(x, y) {
     super(x, y, 12 * ART_SCALE, 16 * ART_SCALE);
     this.facing = "right";
     this.sprite = null; // assign a SpriteSheet once art is available
     this.cooldowns = { z: 0, x: 0, c: 0 };
+    this.health = PLAYER_MAX_HEALTH;
+    this.maxHealth = PLAYER_MAX_HEALTH;
+    this.invulnTimer = 0;
+    this._animTime = 0;
+    this._walking = false;
+  }
+
+  /** Applies damage with a brief invulnerability window and a knockback shove. */
+  takeDamage(amount, knockbackDir) {
+    if (this.invulnTimer > 0 || this.health <= 0) return;
+    this.health = Math.max(0, this.health - amount);
+    this.invulnTimer = INVULN_TIME;
+    this.x += knockbackDir * KNOCKBACK_DISTANCE;
+    this.vy = -KNOCKBACK_LIFT;
   }
 
   update(dt, game) {
     const { input } = game;
+
+    this.invulnTimer = Math.max(0, this.invulnTimer - dt);
 
     let dx = 0;
     if (input.isDown("left")) dx -= 1;
@@ -29,6 +96,8 @@ export class Player extends Entity {
     this.vx = dx * MOVE_SPEED;
     this.x += this.vx * dt;
     this.x = Math.max(0, Math.min(this.x, game.world.width - this.width));
+    this._walking = dx !== 0;
+    if (this._walking) this._animTime += dt;
 
     if (input.isDown("up") && this.grounded) {
       this.vy = JUMP_VELOCITY;
@@ -88,19 +157,34 @@ export class Player extends Entity {
     const screenX = Math.round(this.x - camera.x);
     const screenY = Math.round(this.y - camera.y);
 
+    // Blink while invulnerable so a hit reads as feedback, not silence.
+    if (this.invulnTimer > 0 && Math.floor(this.invulnTimer * 12) % 2 === 0) return;
+
     if (this.sprite) {
       this.sprite.draw(ctx, 0, screenX, screenY);
       return;
     }
 
-    // Placeholder art until a sprite sheet is wired up.
-    ctx.fillStyle = "#7cff7c";
-    ctx.fillRect(screenX, screenY, this.width, this.height);
+    const frameIndex = this._walking ? Math.floor(this._animTime / FRAME_DURATION) % 2 : 0;
+    const rows = PLAYER_FRAMES[frameIndex];
 
-    // Facing indicator, handy for confirming aim direction without art.
-    ctx.fillStyle = "#0b0d10";
-    const markSize = 3 * ART_SCALE;
-    const facingX = this.facing === "right" ? screenX + this.width - markSize : screenX;
-    ctx.fillRect(facingX, screenY + markSize, markSize, markSize);
+    for (let row = 0; row < rows.length; row++) {
+      const pattern = rows[row];
+      for (let col = 0; col < pattern.length; col++) {
+        const ch = pattern[col];
+        if (ch === ".") continue;
+        ctx.fillStyle = PLAYER_PALETTE[ch];
+        ctx.fillRect(screenX + col * PIXEL, screenY + row * PIXEL, PIXEL, PIXEL);
+      }
+    }
+
+    // A small sidearm poking out on the facing side, toward the aim direction.
+    const gunWidth = 4 * PIXEL;
+    const gunY = screenY + 6 * PIXEL;
+    const gunX = this.facing === "right" ? screenX + this.width : screenX - gunWidth;
+    ctx.fillStyle = "#4a4a4a";
+    ctx.fillRect(gunX, gunY, gunWidth, PIXEL);
+    ctx.fillStyle = "#0f0c09";
+    ctx.fillRect(gunX, gunY, PIXEL, PIXEL);
   }
 }

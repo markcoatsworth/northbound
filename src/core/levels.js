@@ -51,7 +51,7 @@ export const LEVELS = [
     mammothFractions: [0.3, 0.55, 0.8],
     bunkerFractions: [0.2, 0.4, 0.6, 0.8],
     bossHealth: 36,
-    bossType: "smilodon",
-    bossName: "SMILODON",
+    bossType: "honeyBadger",
+    bossName: "HONEY BADGER",
   },
 ];

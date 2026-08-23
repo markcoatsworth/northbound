@@ -8,8 +8,20 @@ import { Player } from "../entities/player.js";
 import { Zombie } from "../entities/zombie.js";
 import { Mammoth } from "../entities/mammoth.js";
 import { MonsterTruck } from "../entities/monsterTruck.js";
+import { Arctodus } from "../entities/arctodus.js";
+import { Deinosuchus } from "../entities/deinosuchus.js";
+import { TRex } from "../entities/tRex.js";
+import { Smilodon } from "../entities/smilodon.js";
 import { Projectile } from "../entities/projectile.js";
 import { LEVELS, WORLD_HEIGHT_TILES } from "./levels.js";
+
+const BOSS_TYPES = {
+  monsterTruck: MonsterTruck,
+  arctodus: Arctodus,
+  deinosuchus: Deinosuchus,
+  tRex: TRex,
+  smilodon: Smilodon,
+};
 
 const LEVEL_CLEAR_DELAY = 1.6;
 const BOSS_EDGE_MARGIN = 90 * ART_SCALE;
@@ -59,7 +71,8 @@ export class Game {
     );
 
     const bossX = worldWidth - BOSS_EDGE_MARGIN;
-    this.boss = new MonsterTruck(bossX, groundTop - 24 * ART_SCALE, level.bossHealth);
+    const BossClass = BOSS_TYPES[level.bossType];
+    this.boss = new BossClass(bossX, groundTop - 24 * ART_SCALE, level.bossHealth);
 
     this.entities = [this.player, ...zombies, ...mammoths, this.boss];
     this._pending = [];
@@ -141,7 +154,7 @@ export class Game {
       if (!(projectile instanceof Projectile) || !projectile.alive) continue;
 
       for (const enemy of this.entities) {
-        const isEnemy = enemy instanceof Zombie || enemy instanceof Mammoth || enemy instanceof MonsterTruck;
+        const isEnemy = enemy instanceof Zombie || enemy instanceof Mammoth || enemy.isBoss;
         if (!isEnemy || !enemy.alive) continue;
 
         if (projectile.intersects(enemy)) {
@@ -156,7 +169,7 @@ export class Game {
 
   _resolvePlayerContact() {
     for (const enemy of this.entities) {
-      const isThreat = enemy instanceof Zombie || enemy instanceof Mammoth || enemy instanceof MonsterTruck;
+      const isThreat = enemy instanceof Zombie || enemy instanceof Mammoth || enemy.isBoss;
       if (!isThreat || !enemy.alive) continue;
 
       if (enemy.intersects(this.player)) {
@@ -218,7 +231,7 @@ export class Game {
 
       ctx.textAlign = "center";
       ctx.fillStyle = "#eafff0";
-      ctx.fillText("MONSTER TRUCK", VIEWPORT_WIDTH / 2, barY - 1);
+      ctx.fillText(LEVELS[this.levelIndex].bossName, VIEWPORT_WIDTH / 2, barY - 1);
 
       ctx.fillStyle = "#3a2020";
       ctx.fillRect(barX, barY + 2, barWidth, 5);

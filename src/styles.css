@@ -31,6 +31,21 @@ body {
   box-sizing: border-box;
 }
 
+#game-title {
+  margin: 0 0 20px;
+  padding: 0;
+  text-align: center;
+  font-family: "Courier New", monospace;
+  font-size: 44px;
+  font-weight: bold;
+  letter-spacing: 10px;
+  text-transform: uppercase;
+  color: #2c3a30;
+  text-shadow:
+    0 0 14px rgba(124, 255, 124, 0.12),
+    1px 1px 0 #000;
+}
+
 #screen {
   position: relative;
 }

@@ -31,8 +31,9 @@ src/
     player.js
     zombie.js
     mammoth.js
+    physics.js          Gravity + platform landing shared by player/enemies
   world/
-    world.js            Placeholder tile grid; swap in a real tilemap later
+    world.js            Placeholder ground + floating platforms; swap in a real tilemap later
 assets/
   sprites/, tilesets/, audio/   Drop art and sound in here
 ```
@@ -44,5 +45,11 @@ in `src/main.js`.
 
 ## Controls
 
-- Move: WASD or arrow keys
-- Run: Shift
+Side-scroller: left/right walk, up jumps, down fast-falls while airborne.
+Z/X/C fire three distinct weapons (fast/weak, spread, slow/heavy), each on
+its own cooldown.
+
+- Keyboard: arrows or WASD to move, Space also jumps, Z/X/C to shoot
+- On-screen: a D-pad (bottom-left) and Z/X/C buttons (bottom-right), same
+  underlying input actions as the keyboard — see `Input.bindButton` in
+  `src/core/input.js`

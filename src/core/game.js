@@ -1,4 +1,4 @@
-import { VIEWPORT_WIDTH, VIEWPORT_HEIGHT, PIXEL_SCALE } from "./constants.js";
+import { VIEWPORT_WIDTH, VIEWPORT_HEIGHT, PIXEL_SCALE, ART_SCALE } from "./constants.js";
 import { Input } from "./input.js";
 import { Camera } from "./camera.js";
 import { GameLoop } from "./loop.js";
@@ -7,6 +7,10 @@ import { World } from "../world/world.js";
 import { Player } from "../entities/player.js";
 import { Zombie } from "../entities/zombie.js";
 import { Mammoth } from "../entities/mammoth.js";
+import { Projectile } from "../entities/projectile.js";
+
+const WORLD_WIDTH_TILES = 300;
+const WORLD_HEIGHT_TILES = 14;
 
 export class Game {
   constructor(canvas) {
@@ -22,15 +26,17 @@ export class Game {
     this.input = new Input();
     this.assets = new AssetLoader();
     this.camera = new Camera(VIEWPORT_WIDTH, VIEWPORT_HEIGHT);
-    this.world = new World(60, 40);
+    this.world = new World(WORLD_WIDTH_TILES, WORLD_HEIGHT_TILES);
 
-    this.player = new Player(this.world.width / 2, this.world.height / 2);
+    const groundTop = this.world.groundTop;
+    this.player = new Player(40 * ART_SCALE, groundTop - 40 * ART_SCALE);
     this.entities = [
       this.player,
-      new Zombie(this.player.x - 60, this.player.y - 40),
-      new Zombie(this.player.x + 80, this.player.y + 30),
-      new Mammoth(this.player.x + 20, this.player.y - 90),
+      new Zombie(220 * ART_SCALE, groundTop - 20 * ART_SCALE),
+      new Zombie(380 * ART_SCALE, groundTop - 20 * ART_SCALE),
+      new Mammoth(520 * ART_SCALE, groundTop - 40 * ART_SCALE),
     ];
+    this._pending = [];
 
     this.loop = new GameLoop({
       update: (dt) => this.update(dt),
@@ -50,12 +56,42 @@ export class Game {
     this.loop.start();
   }
 
+  /** Queues an entity (e.g. a projectile) to be added after the current update pass. */
+  spawnEntity(entity) {
+    this._pending.push(entity);
+  }
+
   update(dt) {
     for (const entity of this.entities) {
       entity.update(dt, this);
     }
+
+    this._resolveCombat();
+
+    this.entities.push(...this._pending);
+    this._pending = [];
+    this.entities = this.entities.filter((entity) => entity.alive);
+
     this.camera.follow(this.player, this.world.width, this.world.height);
     this.input.endFrame();
+  }
+
+  _resolveCombat() {
+    for (const projectile of this.entities) {
+      if (!(projectile instanceof Projectile) || !projectile.alive) continue;
+
+      for (const enemy of this.entities) {
+        const isEnemy = enemy instanceof Zombie || enemy instanceof Mammoth;
+        if (!isEnemy || !enemy.alive) continue;
+
+        if (projectile.intersects(enemy)) {
+          enemy.health -= projectile.damage;
+          projectile.alive = false;
+          if (enemy.health <= 0) enemy.alive = false;
+          break;
+        }
+      }
+    }
   }
 
   render() {

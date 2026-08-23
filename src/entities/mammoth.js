@@ -1,27 +1,29 @@
 import { Entity } from "./entity.js";
+import { applyPlatformPhysics } from "../core/physics.js";
+import { ART_SCALE } from "../core/constants.js";
 
-const WANDER_SPEED = 18;
+const WANDER_SPEED = 18 * ART_SCALE;
 
 export class Mammoth extends Entity {
   constructor(x, y) {
-    super(x, y, 28, 24);
+    super(x, y, 28 * ART_SCALE, 24 * ART_SCALE);
+    this.health = 5;
     this.sprite = null;
-    this._wanderAngle = Math.random() * Math.PI * 2;
-    this._wanderTimer = 0;
+    this._wanderDir = Math.random() < 0.5 ? -1 : 1;
+    this._wanderTimer = 2 + Math.random() * 3;
   }
 
   update(dt, game) {
     this._wanderTimer -= dt;
     if (this._wanderTimer <= 0) {
-      this._wanderAngle = Math.random() * Math.PI * 2;
+      this._wanderDir = Math.random() < 0.5 ? -1 : 1;
       this._wanderTimer = 2 + Math.random() * 3;
     }
 
-    this.vx = Math.cos(this._wanderAngle) * WANDER_SPEED;
-    this.vy = Math.sin(this._wanderAngle) * WANDER_SPEED;
-
+    this.vx = this._wanderDir * WANDER_SPEED;
     this.x = Math.max(0, Math.min(this.x + this.vx * dt, game.world.width - this.width));
-    this.y = Math.max(0, Math.min(this.y + this.vy * dt, game.world.height - this.height));
+
+    applyPlatformPhysics(this, dt, game.world);
   }
 
   render(ctx, camera) {

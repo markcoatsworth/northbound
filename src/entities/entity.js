@@ -6,6 +6,7 @@ export class Entity {
     this.height = height;
     this.vx = 0;
     this.vy = 0;
+    this.grounded = false;
     this.alive = true;
   }
 

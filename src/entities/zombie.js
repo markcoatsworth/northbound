@@ -1,25 +1,22 @@
 import { Entity } from "./entity.js";
+import { applyPlatformPhysics } from "../core/physics.js";
+import { ART_SCALE } from "../core/constants.js";
 
-const SHAMBLE_SPEED = 24;
+const SHAMBLE_SPEED = 24 * ART_SCALE;
 
 export class Zombie extends Entity {
   constructor(x, y) {
-    super(x, y, 12, 16);
+    super(x, y, 12 * ART_SCALE, 16 * ART_SCALE);
+    this.health = 1;
     this.sprite = null;
   }
 
   update(dt, game) {
-    const target = game.player;
-    const dx = target.x - this.x;
-    const dy = target.y - this.y;
-    const distance = Math.hypot(dx, dy);
+    const dir = Math.sign(game.player.x - this.x);
+    this.vx = dir * SHAMBLE_SPEED;
+    this.x += this.vx * dt;
 
-    if (distance > 1) {
-      this.vx = (dx / distance) * SHAMBLE_SPEED;
-      this.vy = (dy / distance) * SHAMBLE_SPEED;
-      this.x += this.vx * dt;
-      this.y += this.vy * dt;
-    }
+    applyPlatformPhysics(this, dt, game.world);
   }
 
   render(ctx, camera) {

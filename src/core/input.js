@@ -1,15 +1,16 @@
 const KEY_ALIASES = {
   ArrowUp: "up",
   KeyW: "up",
+  Space: "up",
   ArrowDown: "down",
   KeyS: "down",
   ArrowLeft: "left",
   KeyA: "left",
   ArrowRight: "right",
   KeyD: "right",
-  Space: "action",
-  ShiftLeft: "run",
-  ShiftRight: "run",
+  KeyZ: "z",
+  KeyX: "x",
+  KeyC: "c",
 };
 
 export class Input {
@@ -45,5 +46,24 @@ export class Input {
 
   endFrame() {
     this.justPressed.clear();
+  }
+
+  /** Wires an on-screen button element to press/release the same action set as the keyboard. */
+  bindButton(element, action) {
+    const press = (e) => {
+      e.preventDefault();
+      if (!this.pressed.has(action)) this.justPressed.add(action);
+      this.pressed.add(action);
+    };
+    const release = (e) => {
+      e.preventDefault();
+      this.pressed.delete(action);
+    };
+
+    element.addEventListener("pointerdown", press);
+    element.addEventListener("pointerup", release);
+    element.addEventListener("pointerleave", release);
+    element.addEventListener("pointercancel", release);
+    element.addEventListener("contextmenu", (e) => e.preventDefault());
   }
 }

@@ -1,4 +1,8 @@
-export const TILE_SIZE = 16;
+// Scales the size of tiles, entities, and movement constants so in-game
+// artifacts render as bigger/chunkier blocks without touching the viewport.
+export const ART_SCALE = 2;
+
+export const TILE_SIZE = 16 * ART_SCALE;
 
 export const VIEWPORT_WIDTH = 320;
 export const VIEWPORT_HEIGHT = 180;

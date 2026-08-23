@@ -29,5 +29,22 @@ export function applyPlatformPhysics(entity, dt, world) {
     }
   }
 
+  // Walking sideways off a lower platform (e.g. a bunker's sunken floor)
+  // into a taller one's footprint has no falling edge to trigger the check
+  // above, so pop the entity back on top of anything it's still embedded
+  // in. Guarded to falling/resting entities so jumping up through a
+  // platform from underneath still passes through as before.
+  if (entity.vy >= 0) {
+    for (const platform of world.platforms) {
+      const overlapsX = entity.x + entity.width > platform.x && entity.x < platform.x + platform.width;
+      const embedded = entity.y + entity.height > platform.y && entity.y < platform.y + platform.height;
+      if (!overlapsX || !embedded) continue;
+
+      entity.y = platform.y - entity.height;
+      entity.vy = 0;
+      entity.grounded = true;
+    }
+  }
+
   entity.y = Math.max(0, Math.min(entity.y, world.height - entity.height));
 }

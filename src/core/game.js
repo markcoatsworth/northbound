@@ -11,7 +11,7 @@ import { MonsterTruck } from "../entities/monsterTruck.js";
 import { Arctodus } from "../entities/arctodus.js";
 import { Deinosuchus } from "../entities/deinosuchus.js";
 import { TRex } from "../entities/tRex.js";
-import { Smilodon } from "../entities/smilodon.js";
+import { HoneyBadger } from "../entities/honeyBadger.js";
 import { Projectile } from "../entities/projectile.js";
 import { LEVELS, WORLD_HEIGHT_TILES } from "./levels.js";
 
@@ -20,7 +20,7 @@ const BOSS_TYPES = {
   arctodus: Arctodus,
   deinosuchus: Deinosuchus,
   tRex: TRex,
-  smilodon: Smilodon,
+  honeyBadger: HoneyBadger,
 };
 
 const LEVEL_CLEAR_DELAY = 1.6;

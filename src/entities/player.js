@@ -101,6 +101,7 @@ export class Player extends Entity {
 
     if (input.isDown("up") && this.grounded) {
       this.vy = JUMP_VELOCITY;
+      game.audio.jump();
     }
     if (input.isDown("down") && !this.grounded) {
       this.vy += FAST_FALL_ACCEL * dt;
@@ -124,11 +125,13 @@ export class Player extends Entity {
 
     if (type === "z") {
       // Fast, low-damage single shot.
+      game.audio.shootZ();
       game.spawnEntity(
         new Projectile(originX, originY, dir * 220 * ART_SCALE, 0, { damage: 1, color: "#fff67a" })
       );
     } else if (type === "x") {
       // Three-way spread.
+      game.audio.shootX();
       for (const spread of [-0.25, 0, 0.25]) {
         const speed = 180 * ART_SCALE;
         game.spawnEntity(
@@ -141,6 +144,7 @@ export class Player extends Entity {
       }
     } else if (type === "c") {
       // Slow heavy shot.
+      game.audio.shootC();
       game.spawnEntity(
         new Projectile(originX, originY, dir * 100 * ART_SCALE, 0, {
           damage: 3,

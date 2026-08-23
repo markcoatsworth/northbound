@@ -31,6 +31,7 @@ export class MonsterTruck extends Entity {
     super(x, y, 40 * ART_SCALE, 24 * ART_SCALE);
     this.health = maxHealth;
     this.maxHealth = maxHealth;
+    this.isBoss = true;
     this.sprite = null;
     this.contactDamage = 1;
     this.guardX = x;

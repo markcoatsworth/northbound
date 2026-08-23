@@ -14,6 +14,7 @@ import { TRex } from "../entities/tRex.js";
 import { HoneyBadger } from "../entities/honeyBadger.js";
 import { Projectile } from "../entities/projectile.js";
 import { LEVELS, WORLD_HEIGHT_TILES } from "./levels.js";
+import { AudioManager } from "./audio.js";
 
 const BOSS_TYPES = {
   monsterTruck: MonsterTruck,
@@ -39,6 +40,7 @@ export class Game {
 
     this.input = new Input();
     this.assets = new AssetLoader();
+    this.audio = new AudioManager();
     this.camera = new Camera(VIEWPORT_WIDTH, VIEWPORT_HEIGHT);
 
     this.loop = new GameLoop({
@@ -80,6 +82,7 @@ export class Game {
     this.camera.y = 0;
     this.phase = "playing";
     this.levelClearTimer = 0;
+    this._prevBossState = null;
   }
 
   async init(assetManifest = {}) {
@@ -121,6 +124,7 @@ export class Game {
           this.loadLevel(this.levelIndex + 1);
         } else {
           this.phase = "victory";
+          this.audio.victory();
         }
       }
       this.input.endFrame();
@@ -141,11 +145,18 @@ export class Game {
     this.camera.follow(this.player, this.world.width, this.world.height);
     this.input.endFrame();
 
+    if (this.boss && this.boss.alive && this.boss.state !== this._prevBossState) {
+      if (this.boss.state === "telegraph") this.audio.bossTelegraph();
+      this._prevBossState = this.boss.state;
+    }
+
     if (this.player.health <= 0) {
       this.phase = "gameOver";
+      this.audio.gameOver();
     } else if (!this.boss.alive) {
       this.phase = "levelClear";
       this.levelClearTimer = LEVEL_CLEAR_DELAY;
+      this.audio.levelClear();
     }
   }
 
@@ -160,7 +171,12 @@ export class Game {
         if (projectile.intersects(enemy)) {
           enemy.health -= projectile.damage;
           projectile.alive = false;
-          if (enemy.health <= 0) enemy.alive = false;
+          if (enemy.health <= 0) {
+            enemy.alive = false;
+            this.audio.enemyDeath();
+          } else {
+            this.audio.hit();
+          }
           break;
         }
       }
@@ -174,7 +190,9 @@ export class Game {
 
       if (enemy.intersects(this.player)) {
         const dir = Math.sign(this.player.x - enemy.x) || (this.player.facing === "right" ? -1 : 1);
+        const wasInvulnerable = this.player.invulnTimer > 0;
         this.player.takeDamage(enemy.contactDamage ?? 1, dir);
+        if (!wasInvulnerable) this.audio.playerHurt();
       }
     }
   }

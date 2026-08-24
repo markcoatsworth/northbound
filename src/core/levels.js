@@ -13,7 +13,7 @@ export const TOTAL_DISTANCE_KM = 500;
 export const LEVELS = [
   {
     name: "Outskirts",
-    widthTiles: 60,
+    widthTiles: 90,
     zombieCount: 4,
     mammothCount: 1,
     bunkerCount: 1,
@@ -23,7 +23,7 @@ export const LEVELS = [
   },
   {
     name: "Frozen Pass",
-    widthTiles: 80,
+    widthTiles: 120,
     zombieCount: 6,
     mammothCount: 2,
     bunkerCount: 2,
@@ -33,7 +33,7 @@ export const LEVELS = [
   },
   {
     name: "Sunken Bunker",
-    widthTiles: 90,
+    widthTiles: 140,
     zombieCount: 8,
     mammothCount: 2,
     bunkerCount: 3,
@@ -43,7 +43,7 @@ export const LEVELS = [
   },
   {
     name: "Last Stand",
-    widthTiles: 100,
+    widthTiles: 160,
     zombieCount: 10,
     mammothCount: 3,
     bunkerCount: 3,
@@ -53,7 +53,7 @@ export const LEVELS = [
   },
   {
     name: "Point Zero",
-    widthTiles: 110,
+    widthTiles: 180,
     zombieCount: 12,
     mammothCount: 3,
     bunkerCount: 4,

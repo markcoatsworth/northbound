@@ -1,4 +1,4 @@
-import { VIEWPORT_WIDTH, VIEWPORT_HEIGHT, PIXEL_SCALE, ART_SCALE } from "./constants.js";
+import { VIEWPORT_WIDTH, VIEWPORT_HEIGHT, PIXEL_SCALE, ART_SCALE, TILE_SIZE } from "./constants.js";
 import { Input } from "./input.js";
 import { Camera } from "./camera.js";
 import { GameLoop } from "./loop.js";
@@ -13,7 +13,7 @@ import { Deinosuchus } from "../entities/deinosuchus.js";
 import { TRex } from "../entities/tRex.js";
 import { HoneyBadger } from "../entities/honeyBadger.js";
 import { Projectile } from "../entities/projectile.js";
-import { LEVELS, WORLD_HEIGHT_TILES } from "./levels.js";
+import { LEVELS, WORLD_HEIGHT_TILES, generateLevelLayout, TOTAL_DISTANCE_KM } from "./levels.js";
 import { AudioManager } from "./audio.js";
 
 const BOSS_TYPES = {
@@ -57,18 +57,19 @@ export class Game {
 
   loadLevel(index) {
     const level = LEVELS[index];
+    const layout = generateLevelLayout(index);
     this.levelIndex = index;
-    this.world = new World(level.widthTiles, WORLD_HEIGHT_TILES, level.bunkerFractions ?? []);
+    this.world = new World(level.widthTiles, WORLD_HEIGHT_TILES, layout.bunkerFractions);
 
     const groundTop = this.world.groundTop;
     const worldWidth = this.world.width;
 
     this.player = new Player(40 * ART_SCALE, groundTop - 40 * ART_SCALE);
 
-    const zombies = level.zombieFractions.map(
+    const zombies = layout.zombieFractions.map(
       (f) => new Zombie(f * worldWidth, groundTop - 20 * ART_SCALE)
     );
-    const mammoths = level.mammothFractions.map(
+    const mammoths = layout.mammothFractions.map(
       (f) => new Mammoth(f * worldWidth, groundTop - 40 * ART_SCALE)
     );
 
@@ -160,6 +161,29 @@ export class Game {
     }
   }
 
+  /**
+   * Kilometers left to Canada, proportional to distance travelled across the
+   * whole game (every level's widthTiles), not just the current one — so it
+   * always lands on exactly 0 at the end of the last level regardless of how
+   * many levels exist.
+   */
+  _kmRemaining() {
+    const isLastLevel = this.levelIndex === LEVELS.length - 1;
+    if (this.phase === "victory" || (isLastLevel && this.phase === "levelClear")) {
+      return 0;
+    }
+
+    const totalTiles = LEVELS.reduce((sum, level) => sum + level.widthTiles, 0);
+    const completedTiles = LEVELS.slice(0, this.levelIndex).reduce(
+      (sum, level) => sum + level.widthTiles,
+      0
+    );
+    const playerTiles = this.player.x / TILE_SIZE;
+    const progressTiles = Math.min(totalTiles, completedTiles + playerTiles);
+
+    return TOTAL_DISTANCE_KM * (1 - progressTiles / totalTiles);
+  }
+
   _resolveCombat() {
     for (const projectile of this.entities) {
       if (!(projectile instanceof Projectile) || !projectile.alive) continue;
@@ -232,6 +256,12 @@ export class Game {
       ctx.lineWidth = 1;
       ctx.strokeRect(hx + 0.5, hy + 0.5, heartSize - 1, heartSize - 1);
     }
+
+    // Distance countdown, top-left under the hearts.
+    ctx.textAlign = "left";
+    ctx.font = "8px monospace";
+    ctx.fillStyle = "#eafff0";
+    ctx.fillText(`${Math.ceil(this._kmRemaining())} KM TO CANADA`, 6, 20);
 
     // Level name, top-right.
     const levelName = LEVELS[this.levelIndex].name;

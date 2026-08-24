@@ -6,6 +6,7 @@ import { ART_SCALE } from "../core/constants.js";
 const MOVE_SPEED = 70 * ART_SCALE;
 const JUMP_VELOCITY = -160 * ART_SCALE;
 const FAST_FALL_ACCEL = 600 * ART_SCALE;
+const CLIMB_SPEED = 70 * ART_SCALE;
 
 // Z/X/C are three distinct weapons, each with its own fire-rate cooldown.
 const WEAPON_COOLDOWNS = { z: 0.22, x: 0.5, c: 0.9 };
@@ -99,15 +100,29 @@ export class Player extends Entity {
     this._walking = dx !== 0;
     if (this._walking) this._animTime += dt;
 
-    if (input.isDown("up") && this.grounded) {
-      this.vy = JUMP_VELOCITY;
-      game.audio.jump();
-    }
-    if (input.isDown("down") && !this.grounded) {
-      this.vy += FAST_FALL_ACCEL * dt;
-    }
+    // Ladders (the only way back up out of a tunnel shaft — well beyond jump
+    // height) override gravity while up/down is held and the player's
+    // bounding box overlaps one; otherwise physics runs as normal.
+    const ladder = game.world.getLadderAt(this);
+    if (ladder && (input.isDown("up") || input.isDown("down"))) {
+      this.grounded = false;
+      this.vy = 0;
+      let climbDy = 0;
+      if (input.isDown("up")) climbDy -= 1;
+      if (input.isDown("down")) climbDy += 1;
+      this.y += climbDy * CLIMB_SPEED * dt;
+      this.y = Math.max(ladder.top - this.height, Math.min(this.y, ladder.bottom - this.height));
+    } else {
+      if (input.isDown("up") && this.grounded) {
+        this.vy = JUMP_VELOCITY;
+        game.audio.jump();
+      }
+      if (input.isDown("down") && !this.grounded) {
+        this.vy += FAST_FALL_ACCEL * dt;
+      }
 
-    applyPlatformPhysics(this, dt, game.world);
+      applyPlatformPhysics(this, dt, game.world);
+    }
 
     for (const key of Object.keys(this.cooldowns)) {
       this.cooldowns[key] = Math.max(0, this.cooldowns[key] - dt);

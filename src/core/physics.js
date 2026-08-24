@@ -5,16 +5,22 @@ export const TERMINAL_VELOCITY = 260 * ART_SCALE;
 
 /**
  * Applies gravity and lands the entity on the first platform whose top it
- * crosses while falling. One-directional (landing only) — good enough until
- * the world needs side/ceiling collision too.
+ * crosses while falling. Landing is one-directional for every platform
+ * (floating platforms are deliberately jump-through from underneath), but
+ * `isGround` platforms (surface/bunker/tunnel-floor earth, as opposed to
+ * floating platforms) also block a rising entity from its underside — solid
+ * ground, unlike a thin platform, was never meant to be jumped through, and
+ * tunnels are the first place an entity can actually be beneath one.
  */
 export function applyPlatformPhysics(entity, dt, world) {
   entity.vy = Math.min(entity.vy + GRAVITY * dt, TERMINAL_VELOCITY);
 
+  const prevTop = entity.y;
   const prevBottom = entity.y + entity.height;
   entity.y += entity.vy * dt;
 
   entity.grounded = false;
+  const top = entity.y;
   const bottom = entity.y + entity.height;
 
   for (const platform of world.platforms) {
@@ -26,6 +32,14 @@ export function applyPlatformPhysics(entity, dt, world) {
       entity.y = platformTop - entity.height;
       entity.vy = 0;
       entity.grounded = true;
+    }
+
+    if (platform.isGround && entity.vy < 0) {
+      const platformBottom = platform.y + platform.height;
+      if (prevTop >= platformBottom - 1 && top <= platformBottom) {
+        entity.y = platformBottom;
+        entity.vy = 0;
+      }
     }
   }
 

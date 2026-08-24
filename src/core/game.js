@@ -15,6 +15,7 @@ import { HoneyBadger } from "../entities/honeyBadger.js";
 import { Projectile } from "../entities/projectile.js";
 import { LEVELS, WORLD_HEIGHT_TILES, generateLevelLayout, TOTAL_DISTANCE_KM } from "./levels.js";
 import { AudioManager } from "./audio.js";
+import { loadLeaderboard, saveScore, qualifiesForLeaderboard } from "./leaderboard.js";
 
 const BOSS_TYPES = {
   monsterTruck: MonsterTruck,
@@ -26,6 +27,17 @@ const BOSS_TYPES = {
 
 const LEVEL_CLEAR_DELAY = 1.6;
 const BOSS_EDGE_MARGIN = 90 * ART_SCALE;
+
+// Points awarded during a run. Level-clear bonus scales with level index so
+// reaching further north is worth more than farming early kills.
+const SCORE = {
+  zombieKill: 50,
+  mammothKill: 150,
+  bossKill: 1000,
+  levelClearBonus: 500,
+};
+
+const INITIALS_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 export class Game {
   constructor(canvas) {
@@ -49,6 +61,12 @@ export class Game {
     });
 
     this._fpsEl = document.getElementById("fps");
+
+    this.score = 0;
+    this.leaderboard = loadLeaderboard();
+    this._resultPhase = null;
+    this._initials = ["A", "A", "A"];
+    this._initialsCursor = 0;
 
     this.levelIndex = 0;
     this._pending = [];
@@ -102,17 +120,20 @@ export class Game {
   }
 
   update(dt) {
-    if (this.phase === "gameOver") {
-      if (this.input.wasPressed("z") || this.input.wasPressed("up")) {
-        this.loadLevel(this.levelIndex);
-      }
+    if (this.phase === "enterInitials") {
+      this._updateInitialsEntry();
       this.input.endFrame();
       return;
     }
 
-    if (this.phase === "victory") {
+    if (this.phase === "leaderboard") {
       if (this.input.wasPressed("z") || this.input.wasPressed("up")) {
-        this.loadLevel(0);
+        this.score = 0;
+        if (this._resultPhase === "victory") {
+          this.loadLevel(0);
+        } else {
+          this.loadLevel(this.levelIndex);
+        }
       }
       this.input.endFrame();
       return;
@@ -124,8 +145,8 @@ export class Game {
         if (this.levelIndex + 1 < LEVELS.length) {
           this.loadLevel(this.levelIndex + 1);
         } else {
-          this.phase = "victory";
           this.audio.victory();
+          this._finishRun("victory");
         }
       }
       this.input.endFrame();
@@ -152,12 +173,54 @@ export class Game {
     }
 
     if (this.player.health <= 0) {
-      this.phase = "gameOver";
       this.audio.gameOver();
+      this._finishRun("gameOver");
     } else if (!this.boss.alive) {
+      this.score += SCORE.levelClearBonus * (this.levelIndex + 1);
       this.phase = "levelClear";
       this.levelClearTimer = LEVEL_CLEAR_DELAY;
       this.audio.levelClear();
+    }
+  }
+
+  /** Ends the run (death or final boss defeated): route to initials entry if the score makes the table, otherwise straight to the leaderboard view. */
+  _finishRun(resultPhase) {
+    this._resultPhase = resultPhase;
+    this.leaderboard = loadLeaderboard();
+    if (qualifiesForLeaderboard(this.score, this.leaderboard)) {
+      this._initials = ["A", "A", "A"];
+      this._initialsCursor = 0;
+      this.phase = "enterInitials";
+    } else {
+      this.phase = "leaderboard";
+    }
+  }
+
+  _updateInitialsEntry() {
+    if (this.input.wasPressed("left")) {
+      this._initialsCursor = (this._initialsCursor + 2) % 3;
+      this.audio.uiMove();
+    }
+    if (this.input.wasPressed("right")) {
+      this._initialsCursor = (this._initialsCursor + 1) % 3;
+      this.audio.uiMove();
+    }
+    if (this.input.wasPressed("up") || this.input.wasPressed("down")) {
+      const step = this.input.wasPressed("up") ? 1 : -1;
+      const i = INITIALS_LETTERS.indexOf(this._initials[this._initialsCursor]);
+      const next = (i + step + INITIALS_LETTERS.length) % INITIALS_LETTERS.length;
+      this._initials[this._initialsCursor] = INITIALS_LETTERS[next];
+      this.audio.uiMove();
+    }
+    if (this.input.wasPressed("z")) {
+      if (this._initialsCursor < 2) {
+        this._initialsCursor += 1;
+        this.audio.uiMove();
+      } else {
+        this.leaderboard = saveScore(this._initials.join(""), this.score, LEVELS[this.levelIndex].name);
+        this.audio.uiConfirm();
+        this.phase = "leaderboard";
+      }
     }
   }
 
@@ -169,7 +232,8 @@ export class Game {
    */
   _kmRemaining() {
     const isLastLevel = this.levelIndex === LEVELS.length - 1;
-    if (this.phase === "victory" || (isLastLevel && this.phase === "levelClear")) {
+    const wonGame = this._resultPhase === "victory" && (this.phase === "enterInitials" || this.phase === "leaderboard");
+    if (wonGame || (isLastLevel && this.phase === "levelClear")) {
       return 0;
     }
 
@@ -197,6 +261,7 @@ export class Game {
           projectile.alive = false;
           if (enemy.health <= 0) {
             enemy.alive = false;
+            this.score += this._scoreForKill(enemy);
             this.audio.enemyDeath();
           } else {
             this.audio.hit();
@@ -205,6 +270,12 @@ export class Game {
         }
       }
     }
+  }
+
+  _scoreForKill(enemy) {
+    if (enemy.isBoss) return SCORE.bossKill;
+    if (enemy instanceof Mammoth) return SCORE.mammothKill;
+    return SCORE.zombieKill;
   }
 
   _resolvePlayerContact() {
@@ -231,9 +302,15 @@ export class Game {
       entity.render(ctx, this.camera);
     }
 
-    this._renderHud();
+    if (this.phase !== "enterInitials" && this.phase !== "leaderboard") {
+      this._renderHud();
+    }
 
-    if (this.phase !== "playing") {
+    if (this.phase === "enterInitials") {
+      this._renderInitialsEntry();
+    } else if (this.phase === "leaderboard") {
+      this._renderLeaderboard();
+    } else if (this.phase !== "playing") {
       this._renderOverlay();
     }
 
@@ -262,6 +339,9 @@ export class Game {
     ctx.font = "8px monospace";
     ctx.fillStyle = "#eafff0";
     ctx.fillText(`${Math.ceil(this._kmRemaining())} KM TO CANADA`, 6, 20);
+
+    // Score, top-left under the distance countdown.
+    ctx.fillText(`SCORE ${this.score.toLocaleString()}`, 6, 30);
 
     // Level name, top-right.
     const levelName = LEVELS[this.levelIndex].name;
@@ -293,32 +373,88 @@ export class Game {
     ctx.textAlign = "left";
   }
 
+  /** Only reached for "levelClear" — the death/victory phases route through the leaderboard screens instead. */
   _renderOverlay() {
     const { ctx } = this;
 
     ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
     ctx.fillRect(0, 0, VIEWPORT_WIDTH, VIEWPORT_HEIGHT);
 
-    let title = "";
-    let subtitle = "";
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#eafff0";
+    ctx.font = "16px monospace";
+    ctx.fillText("LEVEL CLEAR", VIEWPORT_WIDTH / 2, VIEWPORT_HEIGHT / 2 - 4);
+    ctx.font = "8px monospace";
+    ctx.fillText(LEVELS[this.levelIndex].name, VIEWPORT_WIDTH / 2, VIEWPORT_HEIGHT / 2 + 12);
+    ctx.textAlign = "left";
+  }
 
-    if (this.phase === "gameOver") {
-      title = "GAME OVER";
-      subtitle = "Press Z to retry";
-    } else if (this.phase === "levelClear") {
-      title = "LEVEL CLEAR";
-      subtitle = LEVELS[this.levelIndex].name;
-    } else if (this.phase === "victory") {
-      title = "YOU WIN";
-      subtitle = "Press Z to play again";
-    }
+  _renderInitialsEntry() {
+    const { ctx } = this;
+
+    ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
+    ctx.fillRect(0, 0, VIEWPORT_WIDTH, VIEWPORT_HEIGHT);
 
     ctx.textAlign = "center";
     ctx.fillStyle = "#eafff0";
     ctx.font = "16px monospace";
-    ctx.fillText(title, VIEWPORT_WIDTH / 2, VIEWPORT_HEIGHT / 2 - 4);
+    ctx.fillText("NEW HIGH SCORE", VIEWPORT_WIDTH / 2, VIEWPORT_HEIGHT / 2 - 40);
+
+    ctx.font = "10px monospace";
+    ctx.fillText(this.score.toLocaleString(), VIEWPORT_WIDTH / 2, VIEWPORT_HEIGHT / 2 - 24);
+
+    const letterSpacing = 24;
+    const startX = VIEWPORT_WIDTH / 2 - letterSpacing;
+    ctx.font = "20px monospace";
+    for (let i = 0; i < 3; i++) {
+      const x = startX + i * letterSpacing;
+      ctx.fillStyle = i === this._initialsCursor ? "#ffe066" : "#eafff0";
+      ctx.fillText(this._initials[i], x, VIEWPORT_HEIGHT / 2 + 6);
+    }
+
     ctx.font = "8px monospace";
-    ctx.fillText(subtitle, VIEWPORT_WIDTH / 2, VIEWPORT_HEIGHT / 2 + 12);
+    ctx.fillStyle = "#eafff0";
+    ctx.fillText("UP/DOWN CHANGE   LEFT/RIGHT MOVE   Z CONFIRM", VIEWPORT_WIDTH / 2, VIEWPORT_HEIGHT / 2 + 26);
+    ctx.textAlign = "left";
+  }
+
+  _renderLeaderboard() {
+    const { ctx } = this;
+
+    ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
+    ctx.fillRect(0, 0, VIEWPORT_WIDTH, VIEWPORT_HEIGHT);
+
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#eafff0";
+    ctx.font = "16px monospace";
+    ctx.fillText(this._resultPhase === "victory" ? "YOU WIN" : "GAME OVER", VIEWPORT_WIDTH / 2, 24);
+
+    ctx.font = "10px monospace";
+    ctx.fillText("LEADERBOARD", VIEWPORT_WIDTH / 2, 40);
+
+    ctx.font = "8px monospace";
+    const startY = 54;
+    const rowHeight = 10;
+
+    if (this.leaderboard.length === 0) {
+      ctx.fillText("NO SCORES YET", VIEWPORT_WIDTH / 2, startY);
+    } else {
+      const justSubmitted = this._initials.join("");
+      this.leaderboard.forEach((entry, i) => {
+        const isThisRun = entry.initials === justSubmitted && entry.score === this.score;
+        ctx.fillStyle = isThisRun ? "#ffe066" : "#eafff0";
+        const y = startY + i * rowHeight;
+        ctx.textAlign = "left";
+        ctx.fillText(`${i + 1}. ${entry.initials}`, VIEWPORT_WIDTH / 2 - 70, y);
+        ctx.textAlign = "right";
+        ctx.fillText(entry.score.toLocaleString(), VIEWPORT_WIDTH / 2 + 70, y);
+      });
+    }
+
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#eafff0";
+    ctx.font = "8px monospace";
+    ctx.fillText("PRESS Z TO CONTINUE", VIEWPORT_WIDTH / 2, VIEWPORT_HEIGHT - 12);
     ctx.textAlign = "left";
   }
 }

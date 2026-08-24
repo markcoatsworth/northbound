@@ -114,4 +114,12 @@ export class AudioManager {
   victory() {
     this._fanfare([523, 659, 784, 1046, 1318], { duration: 0.2, volume: 0.2 });
   }
+
+  uiMove() {
+    this._tone({ freq: 440, endFreq: 440, type: "square", duration: 0.05, volume: 0.08 });
+  }
+
+  uiConfirm() {
+    this._fanfare([660, 990], { duration: 0.08, volume: 0.14, step: 0.06 });
+  }
 }

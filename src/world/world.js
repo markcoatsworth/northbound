@@ -21,8 +21,6 @@ const TUNNEL_LENGTH_MAX = 18 * TILE_SIZE;
 const TUNNEL_MARGIN_TILES = 10; // keep clear of the player spawn and boss arena
 const TUNNEL_SPACING_MIN_TILES = 25;
 const TUNNEL_SPACING_MAX_TILES = 45;
-const TUNNEL_INTERIOR_COLOR = "#0d0f14";
-const TUNNEL_FLOOR_COLOR = "#241f1a";
 
 const LADDER_RAIL_COLOR = "#8a6a45";
 const LADDER_RUNG_COLOR = "#c9a26b";
@@ -48,20 +46,17 @@ const PLATFORM_THICKNESS = 12 * ART_SCALE;
 // visible even with no entities or platforms nearby. All of it is generated
 // from periodic/hashed functions of world position rather than stored
 // per-level data, so it works at any level length without extra bookkeeping.
-const SKY_TOP = "#10131a";
-const SKY_BOTTOM = "#1c222b";
-
-const FAR_HILL_COLOR = "#161b24";
+// Colors themselves come from the level's theme (see levels.js) so each
+// level reads as a different place; only the geometry constants below stay
+// fixed across levels.
 const FAR_HILL_PARALLAX = 0.25;
 const FAR_HILL_PERIOD = 220 * ART_SCALE;
 const FAR_HILL_AMPLITUDE = 30 * ART_SCALE;
 
-const NEAR_HILL_COLOR = "#212836";
 const NEAR_HILL_PARALLAX = 0.5;
 const NEAR_HILL_PERIOD = 150 * ART_SCALE;
 const NEAR_HILL_AMPLITUDE = 20 * ART_SCALE;
 
-const TREE_COLOR = "#12151b";
 const TREE_PARALLAX = 0.7;
 const TREE_PERIOD = 70 * ART_SCALE;
 const TREE_WIDTH = 16 * ART_SCALE;
@@ -69,6 +64,18 @@ const TREE_HEIGHT_MIN = 26 * ART_SCALE;
 const TREE_HEIGHT_MAX = 46 * ART_SCALE;
 
 const GROUND_TICK_SPACING = 24 * ART_SCALE;
+
+// Fallback palette, used for any color a level's theme doesn't override.
+export const DEFAULT_THEME = {
+  skyTop: "#10131a",
+  skyBottom: "#1c222b",
+  farHillColor: "#161b24",
+  nearHillColor: "#212836",
+  treeColor: "#12151b",
+  groundColor: "#3a2f28",
+  tunnelFloorColor: "#241f1a",
+  tunnelInteriorColor: "#0d0f14",
+};
 
 // Cheap deterministic pseudo-random in [0, 1) for a given integer index —
 // gives each tree a stable, varied height without storing anything.
@@ -78,10 +85,11 @@ function hash(index) {
 }
 
 export class World {
-  constructor(widthInTiles, heightInTiles, bunkerFractions = []) {
+  constructor(widthInTiles, heightInTiles, bunkerFractions = [], theme = {}) {
     this.widthInTiles = widthInTiles;
     this.heightInTiles = heightInTiles;
     this.width = widthInTiles * TILE_SIZE;
+    this.theme = { ...DEFAULT_THEME, ...theme };
 
     // The world extends TUNNEL_ZONE_HEIGHT below the surface so there's room
     // for a tunnel + its floor underneath; groundTop is computed the same
@@ -232,14 +240,14 @@ export class World {
   render(ctx, camera) {
     this._renderSky(ctx, camera);
     this._renderHillLayer(ctx, camera, {
-      color: FAR_HILL_COLOR,
+      color: this.theme.farHillColor,
       parallax: FAR_HILL_PARALLAX,
       period: FAR_HILL_PERIOD,
       amplitude: FAR_HILL_AMPLITUDE,
       baseWorldY: this.groundTop - 6 * ART_SCALE,
     });
     this._renderHillLayer(ctx, camera, {
-      color: NEAR_HILL_COLOR,
+      color: this.theme.nearHillColor,
       parallax: NEAR_HILL_PARALLAX,
       period: NEAR_HILL_PERIOD,
       amplitude: NEAR_HILL_AMPLITUDE,
@@ -249,7 +257,7 @@ export class World {
     this._renderTunnelInteriors(ctx, camera);
 
     for (const platform of this.platforms) {
-      ctx.fillStyle = platform.isTunnelFloor ? TUNNEL_FLOOR_COLOR : "#3a2f28";
+      ctx.fillStyle = platform.isTunnelFloor ? this.theme.tunnelFloorColor : this.theme.groundColor;
       ctx.fillRect(
         Math.round(platform.x - camera.x),
         Math.round(platform.y - camera.y),
@@ -295,7 +303,7 @@ export class World {
   // crust above the rest of the tunnel occludes it) until the camera
   // actually follows the player down inside.
   _renderTunnelInteriors(ctx, camera) {
-    ctx.fillStyle = TUNNEL_INTERIOR_COLOR;
+    ctx.fillStyle = this.theme.tunnelInteriorColor;
     const interiorTop = this.groundTop + SURFACE_GROUND_HEIGHT;
     for (const tunnel of this.tunnels) {
       ctx.fillRect(
@@ -309,8 +317,8 @@ export class World {
 
   _renderSky(ctx, camera) {
     const gradient = ctx.createLinearGradient(0, 0, 0, camera.viewportHeight);
-    gradient.addColorStop(0, SKY_TOP);
-    gradient.addColorStop(1, SKY_BOTTOM);
+    gradient.addColorStop(0, this.theme.skyTop);
+    gradient.addColorStop(1, this.theme.skyBottom);
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, camera.viewportWidth, camera.viewportHeight);
   }
@@ -339,7 +347,7 @@ export class World {
   // deterministic, so the same stretch of world always looks the same
   // without storing tree positions.
   _renderTreeLayer(ctx, camera) {
-    ctx.fillStyle = TREE_COLOR;
+    ctx.fillStyle = this.theme.treeColor;
     const baseWorldY = this.groundTop + 4 * ART_SCALE;
 
     const worldStart = camera.x * TREE_PARALLAX - TREE_WIDTH;

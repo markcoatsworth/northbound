@@ -59,7 +59,7 @@ export class Game {
     const level = LEVELS[index];
     const layout = generateLevelLayout(index);
     this.levelIndex = index;
-    this.world = new World(level.widthTiles, WORLD_HEIGHT_TILES, layout.bunkerFractions);
+    this.world = new World(level.widthTiles, WORLD_HEIGHT_TILES, layout.bunkerFractions, level.theme);
 
     const groundTop = this.world.groundTop;
     const worldWidth = this.world.width;

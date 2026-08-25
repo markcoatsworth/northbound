@@ -192,6 +192,7 @@ export class Game {
     // Captured before phase changes, so _kmRemaining() still reflects the
     // player's actual position rather than the "run is over" zero-out.
     this._runDistanceKm = Math.round(TOTAL_DISTANCE_KM - this._kmRemaining());
+    this._runLevelLabel = resultPhase === "victory" ? "WIN" : `LV${this.levelIndex + 1}`;
     this._name = "";
     this._lastSavedEntry = null;
     this.phase = "enterName";
@@ -229,7 +230,7 @@ export class Game {
   _finalizeName() {
     const typed = this._name.trim();
     const name = typed.length > 0 ? typed : "PLAYER";
-    const { entries, entry } = saveScore(name, this.score, this._runDistanceKm);
+    const { entries, entry } = saveScore(name, this.score, this._runDistanceKm, this._runLevelLabel);
     this.leaderboard = entries;
     this._lastSavedEntry = entry;
     this.audio.uiConfirm();
@@ -444,8 +445,9 @@ export class Game {
     ctx.fillText("LEADERBOARD", VIEWPORT_WIDTH / 2, 34);
 
     const nameX = 6;
-    const scoreX = 165;
-    const distX = 245;
+    const scoreX = 145;
+    const distX = 205;
+    const levelX = 250;
     const dateX = 314;
     const headerY = 46;
     const startY = 56;
@@ -459,6 +461,7 @@ export class Game {
     ctx.textAlign = "right";
     ctx.fillText("SCORE", scoreX, headerY);
     ctx.fillText("DIST", distX, headerY);
+    ctx.fillText("LEVEL", levelX, headerY);
     ctx.fillText("DATE", dateX, headerY);
 
     ctx.font = "8px monospace";
@@ -476,6 +479,7 @@ export class Game {
         ctx.textAlign = "right";
         ctx.fillText(entry.score.toLocaleString(), scoreX, y);
         ctx.fillText(entry.distanceKm != null ? `${entry.distanceKm}KM` : "—", distX, y);
+        ctx.fillText(entry.levelLabel ?? "—", levelX, y);
         ctx.fillText(formatEntryDate(entry.date), dateX, y);
       });
     }

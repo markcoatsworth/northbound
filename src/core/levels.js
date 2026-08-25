@@ -14,7 +14,7 @@ export const LEVELS = [
   {
     name: "Outskirts",
     widthTiles: 90,
-    zombieCount: 8,
+    zombieCount: 40,
     mammothCount: 1,
     bunkerCount: 1,
     bossHealth: 14,
@@ -34,7 +34,7 @@ export const LEVELS = [
   {
     name: "Frozen Pass",
     widthTiles: 120,
-    zombieCount: 12,
+    zombieCount: 60,
     mammothCount: 2,
     bunkerCount: 2,
     bossHealth: 20,
@@ -54,7 +54,7 @@ export const LEVELS = [
   {
     name: "Sunken Bunker",
     widthTiles: 140,
-    zombieCount: 16,
+    zombieCount: 80,
     mammothCount: 2,
     bunkerCount: 3,
     bossHealth: 24,
@@ -74,7 +74,7 @@ export const LEVELS = [
   {
     name: "Last Stand",
     widthTiles: 160,
-    zombieCount: 20,
+    zombieCount: 100,
     mammothCount: 3,
     bunkerCount: 3,
     bossHealth: 30,
@@ -94,7 +94,7 @@ export const LEVELS = [
   {
     name: "Point Zero",
     widthTiles: 180,
-    zombieCount: 24,
+    zombieCount: 130,
     mammothCount: 3,
     bunkerCount: 4,
     bossHealth: 36,

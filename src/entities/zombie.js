@@ -64,7 +64,7 @@ export class Zombie extends Entity {
 
     this._animTime += dt;
 
-    applyPlatformPhysics(this, dt, game.world);
+    applyPlatformPhysics(this, dt, game.world, game.world.enemyPlatforms);
   }
 
   render(ctx, camera) {

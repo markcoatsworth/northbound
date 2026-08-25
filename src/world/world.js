@@ -105,6 +105,7 @@ export class World {
     this.platforms = [];
     this.tunnels = [];
     this.ladders = [];
+    this._enemyBridges = [];
     const bunkerCenters = [...bunkerFractions].sort((a, b) => a - b).map((f) => f * this.width);
 
     let cursor = 0;
@@ -158,6 +159,10 @@ export class World {
       const spacing = PLATFORM_SPACING_TILES_MIN + Math.random() * (PLATFORM_SPACING_TILES_MAX - PLATFORM_SPACING_TILES_MIN);
       x += platformWidth + spacing * TILE_SIZE;
     }
+
+    // Ground enemies (Zombie/Mammoth) use this instead of `platforms` for
+    // their physics — same geometry, plus the shaft bridges above.
+    this.enemyPlatforms = [...this.platforms, ...this._enemyBridges];
   }
 
   // Cuts a gap [gapX, gapX + gapWidth) through any isGround segment it
@@ -200,6 +205,14 @@ export class World {
 
       this._carveGap(x, SHAFT_WIDTH);
       this._carveGap(rightShaftX, SHAFT_WIDTH);
+
+      // Ground enemies have no ladder logic to climb back out, so they'd
+      // otherwise wander into a shaft while chasing the player and get
+      // stuck underground permanently. Patch the gap for them specifically
+      // with an invisible bridge — the player's own collision still uses
+      // the real (carved) platform list, so the hole stays real for them.
+      this._enemyBridges.push({ x, y: this.groundTop, width: SHAFT_WIDTH, height: SURFACE_GROUND_HEIGHT, isGround: true });
+      this._enemyBridges.push({ x: rightShaftX, y: this.groundTop, width: SHAFT_WIDTH, height: SURFACE_GROUND_HEIGHT, isGround: true });
 
       const tunnelFloorY = this.groundTop + SURFACE_GROUND_HEIGHT + TUNNEL_CLEARANCE;
       const floorWidth = rightShaftX + SHAFT_WIDTH - x;

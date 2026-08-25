@@ -51,7 +51,7 @@ export class Mammoth extends Entity {
     this.x = Math.max(0, Math.min(this.x + this.vx * dt, game.world.width - this.width));
     this._animTime += dt;
 
-    applyPlatformPhysics(this, dt, game.world);
+    applyPlatformPhysics(this, dt, game.world, game.world.enemyPlatforms);
   }
 
   render(ctx, camera) {

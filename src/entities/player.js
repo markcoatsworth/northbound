@@ -126,10 +126,14 @@ export class Player extends Entity {
 
     for (const key of Object.keys(this.cooldowns)) {
       this.cooldowns[key] = Math.max(0, this.cooldowns[key] - dt);
-      if (input.isDown(key) && this.cooldowns[key] === 0) {
-        this.shoot(key, game);
-        this.cooldowns[key] = WEAPON_COOLDOWNS[key];
-      }
+    }
+
+    // Only one weapon fires at a time: whichever of Z/X/C has been held the
+    // longest without a release wins, even if the others are also down.
+    const activeWeapon = input.firstHeld(["z", "x", "c"]);
+    if (activeWeapon && this.cooldowns[activeWeapon] === 0) {
+      this.shoot(activeWeapon, game);
+      this.cooldowns[activeWeapon] = WEAPON_COOLDOWNS[activeWeapon];
     }
   }
 

@@ -40,6 +40,20 @@ export class Input {
     return this.pressed.has(action);
   }
 
+  /**
+   * Among the given actions, returns whichever one has been held the
+   * longest without interruption (i.e. was pressed first and never
+   * released) — Sets iterate in insertion order, and press()/isDown() only
+   * add an action once per press, so this "just works" off that ordering.
+   * Returns null if none of them are currently held.
+   */
+  firstHeld(actions) {
+    for (const action of this.pressed) {
+      if (actions.includes(action)) return action;
+    }
+    return null;
+  }
+
   wasPressed(action) {
     return this.justPressed.has(action);
   }

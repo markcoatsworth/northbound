@@ -189,9 +189,16 @@ export class Game {
   /** Ends the run (death or final boss defeated): every run gets a name-entry screen, and every score gets recorded — even ones that won't crack the visible top of the leaderboard. */
   _finishRun(resultPhase) {
     this._resultPhase = resultPhase;
+    // Captured before phase changes, so _kmRemaining() still reflects the
+    // player's actual position rather than the "run is over" zero-out.
+    this._runDistanceKm = Math.round(TOTAL_DISTANCE_KM - this._kmRemaining());
     this._name = "";
     this._lastSavedEntry = null;
     this.phase = "enterName";
+    // The name-entry screen reads raw keydowns directly; suspend the normal
+    // move/fire action mapping so typing a name (e.g. a "W" or "Z") can't
+    // leak a stale action into the leaderboard's "press Z to continue" check.
+    this.input.disable();
   }
 
   /** Direct keyboard typing for the name-entry screen — bypasses the Input action map since it needs raw characters, not the fixed move/fire actions. */
@@ -222,11 +229,12 @@ export class Game {
   _finalizeName() {
     const typed = this._name.trim();
     const name = typed.length > 0 ? typed : "PLAYER";
-    const { entries, entry } = saveScore(name, this.score);
+    const { entries, entry } = saveScore(name, this.score, this._runDistanceKm);
     this.leaderboard = entries;
     this._lastSavedEntry = entry;
     this.audio.uiConfirm();
     this.phase = "leaderboard";
+    this.input.enable();
   }
 
   /**
@@ -435,8 +443,9 @@ export class Game {
     ctx.font = "10px monospace";
     ctx.fillText("LEADERBOARD", VIEWPORT_WIDTH / 2, 34);
 
-    const nameX = 8;
-    const scoreX = 230;
+    const nameX = 6;
+    const scoreX = 165;
+    const distX = 245;
     const dateX = 314;
     const headerY = 46;
     const startY = 56;
@@ -449,6 +458,7 @@ export class Game {
     ctx.fillText("NAME", nameX, headerY);
     ctx.textAlign = "right";
     ctx.fillText("SCORE", scoreX, headerY);
+    ctx.fillText("DIST", distX, headerY);
     ctx.fillText("DATE", dateX, headerY);
 
     ctx.font = "8px monospace";
@@ -465,6 +475,7 @@ export class Game {
         ctx.fillText(`${i + 1}. ${entry.name}`, nameX, y);
         ctx.textAlign = "right";
         ctx.fillText(entry.score.toLocaleString(), scoreX, y);
+        ctx.fillText(entry.distanceKm != null ? `${entry.distanceKm}KM` : "—", distX, y);
         ctx.fillText(formatEntryDate(entry.date), dateX, y);
       });
     }

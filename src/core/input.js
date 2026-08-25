@@ -17,8 +17,10 @@ export class Input {
   constructor(target = window) {
     this.pressed = new Set();
     this.justPressed = new Set();
+    this.enabled = true;
 
     target.addEventListener("keydown", (e) => {
+      if (!this.enabled) return;
       const action = KEY_ALIASES[e.code];
       if (!action) return;
       if (!this.pressed.has(action)) this.justPressed.add(action);
@@ -38,6 +40,21 @@ export class Input {
 
   isDown(action) {
     return this.pressed.has(action);
+  }
+
+  /**
+   * Suspends action-key handling — used while something else (e.g. the
+   * name-entry screen) owns raw keyboard input — and clears any held/queued
+   * actions so nothing typed while suspended leaks in once re-enabled.
+   */
+  disable() {
+    this.enabled = false;
+    this.pressed.clear();
+    this.justPressed.clear();
+  }
+
+  enable() {
+    this.enabled = true;
   }
 
   /**
@@ -66,6 +83,7 @@ export class Input {
   bindButton(element, action) {
     const press = (e) => {
       e.preventDefault();
+      if (!this.enabled) return;
       if (!this.pressed.has(action)) this.justPressed.add(action);
       this.pressed.add(action);
     };

@@ -15,10 +15,10 @@ export function loadLeaderboard() {
   }
 }
 
-/** Records a run. Returns the full sorted list plus the exact entry object just added (for highlighting it in the UI). */
-export function saveScore(name, score, date = new Date()) {
+/** Records a run. `distanceKm` is how far north (of the 500km total) the run got before it ended — 500 for a win. Returns the full sorted list plus the exact entry object just added (for highlighting it in the UI). */
+export function saveScore(name, score, distanceKm, date = new Date()) {
   const entries = loadLeaderboard();
-  const entry = { name, score, date: date.toISOString() };
+  const entry = { name, score, distanceKm, date: date.toISOString() };
   entries.push(entry);
   entries.sort((a, b) => b.score - a.score);
   try {

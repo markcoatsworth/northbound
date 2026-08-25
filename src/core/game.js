@@ -13,6 +13,7 @@ import { Deinosuchus } from "../entities/deinosuchus.js";
 import { TRex } from "../entities/tRex.js";
 import { HoneyBadger } from "../entities/honeyBadger.js";
 import { Projectile } from "../entities/projectile.js";
+import { HealthPack } from "../entities/healthPack.js";
 import { LEVELS, WORLD_HEIGHT_TILES, generateLevelLayout, TOTAL_DISTANCE_KM } from "./levels.js";
 import { AudioManager } from "./audio.js";
 import { loadLeaderboard, saveScore, formatEntryDate } from "./leaderboard.js";
@@ -27,6 +28,9 @@ const BOSS_TYPES = {
 
 const LEVEL_CLEAR_DELAY = 1.6;
 const BOSS_EDGE_MARGIN = 90 * ART_SCALE;
+// Each tunnel gets a small, predictable guard squad instead of whatever
+// random surface zombies happen to fall through its shaft openings.
+const TUNNEL_ZOMBIE_COUNT = 2;
 
 // Points awarded during a run. Level-clear bonus scales with level index so
 // reaching further north is worth more than farming early kills.
@@ -84,21 +88,42 @@ export class Game {
 
     const groundTop = this.world.groundTop;
     const worldWidth = this.world.width;
+    const tunnels = this.world.tunnels;
 
     this.player = new Player(40 * ART_SCALE, groundTop - 40 * ART_SCALE);
 
-    const zombies = layout.zombieFractions.map(
-      (f) => new Zombie(f * worldWidth, groundTop - 20 * ART_SCALE)
-    );
-    const mammoths = layout.mammothFractions.map(
-      (f) => new Mammoth(f * worldWidth, groundTop - 40 * ART_SCALE)
-    );
+    // Surface spawns skip any fraction landing inside a tunnel's shaft/floor
+    // span — otherwise a random slice of them just fall through the shaft
+    // openings and pile up underground with no rhyme or reason.
+    const inTunnel = (x) => tunnels.some((t) => x >= t.x && x <= t.x + t.width);
+    const zombies = layout.zombieFractions
+      .map((f) => f * worldWidth)
+      .filter((x) => !inTunnel(x))
+      .map((x) => new Zombie(x, groundTop - 20 * ART_SCALE));
+    const mammoths = layout.mammothFractions
+      .map((f) => f * worldWidth)
+      .filter((x) => !inTunnel(x))
+      .map((x) => new Mammoth(x, groundTop - 40 * ART_SCALE));
+
+    // Each tunnel instead gets a deliberate, fixed-size guard squad and a
+    // health pack — a real reason to detour underground, worth a fair fight
+    // rather than an unpredictable crowd.
+    const tunnelZombies = [];
+    const healthPacks = [];
+    for (const tunnel of tunnels) {
+      for (let i = 0; i < TUNNEL_ZOMBIE_COUNT; i++) {
+        const tx = tunnel.x + Math.random() * tunnel.width;
+        tunnelZombies.push(new Zombie(tx, tunnel.floorY - 20 * ART_SCALE));
+      }
+      const packX = tunnel.x + tunnel.width / 2;
+      healthPacks.push(new HealthPack(packX, tunnel.floorY - 20 * ART_SCALE));
+    }
 
     const bossX = worldWidth - BOSS_EDGE_MARGIN;
     const BossClass = BOSS_TYPES[level.bossType];
     this.boss = new BossClass(bossX, groundTop - 24 * ART_SCALE, level.bossHealth);
 
-    this.entities = [this.player, ...zombies, ...mammoths, this.boss];
+    this.entities = [this.player, ...zombies, ...tunnelZombies, ...mammoths, this.boss, ...healthPacks];
     this._pending = [];
     this.camera.x = 0;
     this.camera.y = 0;

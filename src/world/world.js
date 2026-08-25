@@ -211,7 +211,7 @@ export class World {
         isGround: true,
         isTunnelFloor: true,
       });
-      this.tunnels.push({ x, width: floorWidth });
+      this.tunnels.push({ x, width: floorWidth, floorY: tunnelFloorY });
 
       // A ladder at each shaft spans the full drop, from the surface down to
       // the tunnel floor — the only way back up, since that's well beyond

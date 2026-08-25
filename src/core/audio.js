@@ -122,4 +122,8 @@ export class AudioManager {
   uiConfirm() {
     this._fanfare([660, 990], { duration: 0.08, volume: 0.14, step: 0.06 });
   }
+
+  heal() {
+    this._fanfare([523, 784, 1046], { type: "sine", duration: 0.16, volume: 0.16, step: 0.07 });
+  }
 }

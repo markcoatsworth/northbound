@@ -15,7 +15,7 @@ import { HoneyBadger } from "../entities/honeyBadger.js";
 import { Projectile } from "../entities/projectile.js";
 import { LEVELS, WORLD_HEIGHT_TILES, generateLevelLayout, TOTAL_DISTANCE_KM } from "./levels.js";
 import { AudioManager } from "./audio.js";
-import { loadLeaderboard, saveScore, qualifiesForLeaderboard } from "./leaderboard.js";
+import { loadLeaderboard, saveScore, formatEntryDate } from "./leaderboard.js";
 
 const BOSS_TYPES = {
   monsterTruck: MonsterTruck,
@@ -37,7 +37,9 @@ const SCORE = {
   levelClearBonus: 500,
 };
 
-const INITIALS_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const NAME_MAX_LENGTH = 8;
+const NAME_LETTERS = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+const LEADERBOARD_DISPLAY_ROWS = 10;
 
 export class Game {
   constructor(canvas) {
@@ -65,8 +67,9 @@ export class Game {
     this.score = 0;
     this.leaderboard = loadLeaderboard();
     this._resultPhase = null;
-    this._initials = ["A", "A", "A"];
-    this._initialsCursor = 0;
+    this._name = Array(NAME_MAX_LENGTH).fill(" ");
+    this._nameCursor = 0;
+    this._lastSavedEntry = null;
 
     this.levelIndex = 0;
     this._pending = [];
@@ -120,8 +123,8 @@ export class Game {
   }
 
   update(dt) {
-    if (this.phase === "enterInitials") {
-      this._updateInitialsEntry();
+    if (this.phase === "enterName") {
+      this._updateNameEntry();
       this.input.endFrame();
       return;
     }
@@ -183,45 +186,53 @@ export class Game {
     }
   }
 
-  /** Ends the run (death or final boss defeated): route to initials entry if the score makes the table, otherwise straight to the leaderboard view. */
+  /** Ends the run (death or final boss defeated): every run gets a name-entry screen, and every score gets recorded — even ones that won't crack the visible top of the leaderboard. */
   _finishRun(resultPhase) {
     this._resultPhase = resultPhase;
-    this.leaderboard = loadLeaderboard();
-    if (qualifiesForLeaderboard(this.score, this.leaderboard)) {
-      this._initials = ["A", "A", "A"];
-      this._initialsCursor = 0;
-      this.phase = "enterInitials";
-    } else {
-      this.phase = "leaderboard";
-    }
+    this._name = Array(NAME_MAX_LENGTH).fill(" ");
+    this._nameCursor = 0;
+    this._lastSavedEntry = null;
+    this.phase = "enterName";
   }
 
-  _updateInitialsEntry() {
+  _updateNameEntry() {
     if (this.input.wasPressed("left")) {
-      this._initialsCursor = (this._initialsCursor + 2) % 3;
+      this._nameCursor = (this._nameCursor + NAME_MAX_LENGTH - 1) % NAME_MAX_LENGTH;
       this.audio.uiMove();
     }
     if (this.input.wasPressed("right")) {
-      this._initialsCursor = (this._initialsCursor + 1) % 3;
+      this._nameCursor = (this._nameCursor + 1) % NAME_MAX_LENGTH;
       this.audio.uiMove();
     }
     if (this.input.wasPressed("up") || this.input.wasPressed("down")) {
       const step = this.input.wasPressed("up") ? 1 : -1;
-      const i = INITIALS_LETTERS.indexOf(this._initials[this._initialsCursor]);
-      const next = (i + step + INITIALS_LETTERS.length) % INITIALS_LETTERS.length;
-      this._initials[this._initialsCursor] = INITIALS_LETTERS[next];
+      const i = NAME_LETTERS.indexOf(this._name[this._nameCursor]);
+      const next = (i + step + NAME_LETTERS.length) % NAME_LETTERS.length;
+      this._name[this._nameCursor] = NAME_LETTERS[next];
       this.audio.uiMove();
     }
+    if (this.input.wasPressed("x")) {
+      this._finalizeName();
+      return;
+    }
     if (this.input.wasPressed("z")) {
-      if (this._initialsCursor < 2) {
-        this._initialsCursor += 1;
+      if (this._nameCursor < NAME_MAX_LENGTH - 1) {
+        this._nameCursor += 1;
         this.audio.uiMove();
       } else {
-        this.leaderboard = saveScore(this._initials.join(""), this.score, LEVELS[this.levelIndex].name);
-        this.audio.uiConfirm();
-        this.phase = "leaderboard";
+        this._finalizeName();
       }
     }
+  }
+
+  _finalizeName() {
+    const typed = this._name.join("").replace(/\s+$/, "");
+    const name = typed.length > 0 ? typed : "PLAYER";
+    const { entries, entry } = saveScore(name, this.score);
+    this.leaderboard = entries;
+    this._lastSavedEntry = entry;
+    this.audio.uiConfirm();
+    this.phase = "leaderboard";
   }
 
   /**
@@ -232,7 +243,7 @@ export class Game {
    */
   _kmRemaining() {
     const isLastLevel = this.levelIndex === LEVELS.length - 1;
-    const wonGame = this._resultPhase === "victory" && (this.phase === "enterInitials" || this.phase === "leaderboard");
+    const wonGame = this._resultPhase === "victory" && (this.phase === "enterName" || this.phase === "leaderboard");
     if (wonGame || (isLastLevel && this.phase === "levelClear")) {
       return 0;
     }
@@ -302,12 +313,12 @@ export class Game {
       entity.render(ctx, this.camera);
     }
 
-    if (this.phase !== "enterInitials" && this.phase !== "leaderboard") {
+    if (this.phase !== "enterName" && this.phase !== "leaderboard") {
       this._renderHud();
     }
 
-    if (this.phase === "enterInitials") {
-      this._renderInitialsEntry();
+    if (this.phase === "enterName") {
+      this._renderNameEntry();
     } else if (this.phase === "leaderboard") {
       this._renderLeaderboard();
     } else if (this.phase !== "playing") {
@@ -389,7 +400,7 @@ export class Game {
     ctx.textAlign = "left";
   }
 
-  _renderInitialsEntry() {
+  _renderNameEntry() {
     const { ctx } = this;
 
     ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
@@ -397,24 +408,25 @@ export class Game {
 
     ctx.textAlign = "center";
     ctx.fillStyle = "#eafff0";
-    ctx.font = "16px monospace";
-    ctx.fillText("NEW HIGH SCORE", VIEWPORT_WIDTH / 2, VIEWPORT_HEIGHT / 2 - 40);
+    ctx.font = "14px monospace";
+    ctx.fillText("ENTER YOUR NAME", VIEWPORT_WIDTH / 2, VIEWPORT_HEIGHT / 2 - 40);
 
     ctx.font = "10px monospace";
     ctx.fillText(this.score.toLocaleString(), VIEWPORT_WIDTH / 2, VIEWPORT_HEIGHT / 2 - 24);
 
-    const letterSpacing = 24;
-    const startX = VIEWPORT_WIDTH / 2 - letterSpacing;
-    ctx.font = "20px monospace";
-    for (let i = 0; i < 3; i++) {
-      const x = startX + i * letterSpacing;
-      ctx.fillStyle = i === this._initialsCursor ? "#ffe066" : "#eafff0";
-      ctx.fillText(this._initials[i], x, VIEWPORT_HEIGHT / 2 + 6);
+    const slotSpacing = 20;
+    const startX = VIEWPORT_WIDTH / 2 - (slotSpacing * (NAME_MAX_LENGTH - 1)) / 2;
+    ctx.font = "16px monospace";
+    for (let i = 0; i < NAME_MAX_LENGTH; i++) {
+      const x = startX + i * slotSpacing;
+      ctx.fillStyle = i === this._nameCursor ? "#ffe066" : "#eafff0";
+      ctx.fillText(this._name[i], x, VIEWPORT_HEIGHT / 2 + 6);
     }
 
     ctx.font = "8px monospace";
     ctx.fillStyle = "#eafff0";
-    ctx.fillText("UP/DOWN CHANGE   LEFT/RIGHT MOVE   Z CONFIRM", VIEWPORT_WIDTH / 2, VIEWPORT_HEIGHT / 2 + 26);
+    ctx.fillText("UP/DOWN CHANGE   LEFT/RIGHT MOVE", VIEWPORT_WIDTH / 2, VIEWPORT_HEIGHT / 2 + 24);
+    ctx.fillText("Z NEXT LETTER   X DONE", VIEWPORT_WIDTH / 2, VIEWPORT_HEIGHT / 2 + 34);
     ctx.textAlign = "left";
   }
 
@@ -427,34 +439,49 @@ export class Game {
     ctx.textAlign = "center";
     ctx.fillStyle = "#eafff0";
     ctx.font = "16px monospace";
-    ctx.fillText(this._resultPhase === "victory" ? "YOU WIN" : "GAME OVER", VIEWPORT_WIDTH / 2, 24);
+    ctx.fillText(this._resultPhase === "victory" ? "YOU WIN" : "GAME OVER", VIEWPORT_WIDTH / 2, 20);
 
     ctx.font = "10px monospace";
-    ctx.fillText("LEADERBOARD", VIEWPORT_WIDTH / 2, 40);
+    ctx.fillText("LEADERBOARD", VIEWPORT_WIDTH / 2, 34);
+
+    const nameX = 8;
+    const scoreX = 230;
+    const dateX = 314;
+    const headerY = 46;
+    const startY = 56;
+    const rowHeight = 10;
+    const rows = this.leaderboard.slice(0, LEADERBOARD_DISPLAY_ROWS);
+
+    ctx.font = "7px monospace";
+    ctx.fillStyle = "#8fa898";
+    ctx.textAlign = "left";
+    ctx.fillText("NAME", nameX, headerY);
+    ctx.textAlign = "right";
+    ctx.fillText("SCORE", scoreX, headerY);
+    ctx.fillText("DATE", dateX, headerY);
 
     ctx.font = "8px monospace";
-    const startY = 54;
-    const rowHeight = 10;
-
-    if (this.leaderboard.length === 0) {
+    if (rows.length === 0) {
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#eafff0";
       ctx.fillText("NO SCORES YET", VIEWPORT_WIDTH / 2, startY);
     } else {
-      const justSubmitted = this._initials.join("");
-      this.leaderboard.forEach((entry, i) => {
-        const isThisRun = entry.initials === justSubmitted && entry.score === this.score;
+      rows.forEach((entry, i) => {
+        const isThisRun = entry === this._lastSavedEntry;
         ctx.fillStyle = isThisRun ? "#ffe066" : "#eafff0";
         const y = startY + i * rowHeight;
         ctx.textAlign = "left";
-        ctx.fillText(`${i + 1}. ${entry.initials}`, VIEWPORT_WIDTH / 2 - 70, y);
+        ctx.fillText(`${i + 1}. ${entry.name}`, nameX, y);
         ctx.textAlign = "right";
-        ctx.fillText(entry.score.toLocaleString(), VIEWPORT_WIDTH / 2 + 70, y);
+        ctx.fillText(entry.score.toLocaleString(), scoreX, y);
+        ctx.fillText(formatEntryDate(entry.date), dateX, y);
       });
     }
 
     ctx.textAlign = "center";
     ctx.fillStyle = "#eafff0";
     ctx.font = "8px monospace";
-    ctx.fillText("PRESS Z TO CONTINUE", VIEWPORT_WIDTH / 2, VIEWPORT_HEIGHT - 12);
+    ctx.fillText("PRESS Z TO CONTINUE", VIEWPORT_WIDTH / 2, VIEWPORT_HEIGHT - 10);
     ctx.textAlign = "left";
   }
 }

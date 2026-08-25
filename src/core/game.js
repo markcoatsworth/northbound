@@ -38,7 +38,7 @@ const SCORE = {
 };
 
 const NAME_MAX_LENGTH = 8;
-const NAME_LETTERS = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+const NAME_CHAR_PATTERN = /^[a-zA-Z0-9 ]$/;
 const LEADERBOARD_DISPLAY_ROWS = 10;
 
 export class Game {
@@ -67,9 +67,9 @@ export class Game {
     this.score = 0;
     this.leaderboard = loadLeaderboard();
     this._resultPhase = null;
-    this._name = Array(NAME_MAX_LENGTH).fill(" ");
-    this._nameCursor = 0;
+    this._name = "";
     this._lastSavedEntry = null;
+    window.addEventListener("keydown", (e) => this._handleNameEntryKeydown(e));
 
     this.levelIndex = 0;
     this._pending = [];
@@ -124,7 +124,7 @@ export class Game {
 
   update(dt) {
     if (this.phase === "enterName") {
-      this._updateNameEntry();
+      // Typing is handled by the raw keydown listener; nothing to poll per-frame.
       this.input.endFrame();
       return;
     }
@@ -189,44 +189,38 @@ export class Game {
   /** Ends the run (death or final boss defeated): every run gets a name-entry screen, and every score gets recorded — even ones that won't crack the visible top of the leaderboard. */
   _finishRun(resultPhase) {
     this._resultPhase = resultPhase;
-    this._name = Array(NAME_MAX_LENGTH).fill(" ");
-    this._nameCursor = 0;
+    this._name = "";
     this._lastSavedEntry = null;
     this.phase = "enterName";
   }
 
-  _updateNameEntry() {
-    if (this.input.wasPressed("left")) {
-      this._nameCursor = (this._nameCursor + NAME_MAX_LENGTH - 1) % NAME_MAX_LENGTH;
-      this.audio.uiMove();
-    }
-    if (this.input.wasPressed("right")) {
-      this._nameCursor = (this._nameCursor + 1) % NAME_MAX_LENGTH;
-      this.audio.uiMove();
-    }
-    if (this.input.wasPressed("up") || this.input.wasPressed("down")) {
-      const step = this.input.wasPressed("up") ? 1 : -1;
-      const i = NAME_LETTERS.indexOf(this._name[this._nameCursor]);
-      const next = (i + step + NAME_LETTERS.length) % NAME_LETTERS.length;
-      this._name[this._nameCursor] = NAME_LETTERS[next];
-      this.audio.uiMove();
-    }
-    if (this.input.wasPressed("x")) {
+  /** Direct keyboard typing for the name-entry screen — bypasses the Input action map since it needs raw characters, not the fixed move/fire actions. */
+  _handleNameEntryKeydown(e) {
+    if (this.phase !== "enterName") return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+    if (e.key === "Enter") {
+      e.preventDefault();
       this._finalizeName();
       return;
     }
-    if (this.input.wasPressed("z")) {
-      if (this._nameCursor < NAME_MAX_LENGTH - 1) {
-        this._nameCursor += 1;
+    if (e.key === "Backspace") {
+      e.preventDefault();
+      if (this._name.length > 0) {
+        this._name = this._name.slice(0, -1);
         this.audio.uiMove();
-      } else {
-        this._finalizeName();
       }
+      return;
+    }
+    if (e.key.length === 1 && NAME_CHAR_PATTERN.test(e.key) && this._name.length < NAME_MAX_LENGTH) {
+      e.preventDefault();
+      this._name += e.key.toUpperCase();
+      this.audio.uiMove();
     }
   }
 
   _finalizeName() {
-    const typed = this._name.join("").replace(/\s+$/, "");
+    const typed = this._name.trim();
     const name = typed.length > 0 ? typed : "PLAYER";
     const { entries, entry } = saveScore(name, this.score);
     this.leaderboard = entries;
@@ -414,19 +408,16 @@ export class Game {
     ctx.font = "10px monospace";
     ctx.fillText(this.score.toLocaleString(), VIEWPORT_WIDTH / 2, VIEWPORT_HEIGHT / 2 - 24);
 
-    const slotSpacing = 20;
-    const startX = VIEWPORT_WIDTH / 2 - (slotSpacing * (NAME_MAX_LENGTH - 1)) / 2;
-    ctx.font = "16px monospace";
-    for (let i = 0; i < NAME_MAX_LENGTH; i++) {
-      const x = startX + i * slotSpacing;
-      ctx.fillStyle = i === this._nameCursor ? "#ffe066" : "#eafff0";
-      ctx.fillText(this._name[i], x, VIEWPORT_HEIGHT / 2 + 6);
-    }
+    const blinkOn = Math.floor(Date.now() / 500) % 2 === 0;
+    const cursor = blinkOn ? "_" : " ";
+    ctx.fillStyle = "#ffe066";
+    ctx.font = "18px monospace";
+    ctx.fillText(this._name + cursor, VIEWPORT_WIDTH / 2, VIEWPORT_HEIGHT / 2 + 8);
 
     ctx.font = "8px monospace";
     ctx.fillStyle = "#eafff0";
-    ctx.fillText("UP/DOWN CHANGE   LEFT/RIGHT MOVE", VIEWPORT_WIDTH / 2, VIEWPORT_HEIGHT / 2 + 24);
-    ctx.fillText("Z NEXT LETTER   X DONE", VIEWPORT_WIDTH / 2, VIEWPORT_HEIGHT / 2 + 34);
+    ctx.fillText(`TYPE ON YOUR KEYBOARD (UP TO ${NAME_MAX_LENGTH} CHARS)`, VIEWPORT_WIDTH / 2, VIEWPORT_HEIGHT / 2 + 26);
+    ctx.fillText("BACKSPACE DELETE   ENTER CONFIRM", VIEWPORT_WIDTH / 2, VIEWPORT_HEIGHT / 2 + 36);
     ctx.textAlign = "left";
   }
 

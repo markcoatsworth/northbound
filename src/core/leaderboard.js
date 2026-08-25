@@ -1,32 +1,43 @@
-// Local high-score table, arcade-cabinet style: every run gets recorded,
-// persisted in localStorage so it survives reloads on this machine. Storage
-// is unbounded — a low score still gets a permanent spot, even if it's far
-// enough down the list that the on-screen leaderboard (which only shows the
-// top rows) never displays it.
-const STORAGE_KEY = "northbound.leaderboard";
+// Shared, global high-score table — backed by a small server API + Firestore
+// (see server/index.js) instead of localStorage, so everyone who plays sees
+// the same board. Both calls fail soft (return an empty/null result rather
+// than throwing) so a network hiccup degrades to "no scores shown" instead
+// of crashing the game.
+const API_BASE = "/api/leaderboard";
 
-export function loadLeaderboard() {
+export async function loadLeaderboard() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
+    const res = await fetch(API_BASE);
+    if (!res.ok) throw new Error(`GET ${API_BASE} -> ${res.status}`);
+    const entries = await res.json();
+    return Array.isArray(entries) ? entries : [];
   } catch {
     return [];
   }
 }
 
-/** Records a run. `distanceKm` is how far north (of the 500km total) the run got before it ended — 500 for a win. `levelLabel` is which level that happened in (e.g. "LV3"), or "WIN". Returns the full sorted list plus the exact entry object just added (for highlighting it in the UI). */
-export function saveScore(name, score, distanceKm, levelLabel, date = new Date()) {
-  const entries = loadLeaderboard();
-  const entry = { name, score, distanceKm, levelLabel, date: date.toISOString() };
-  entries.push(entry);
-  entries.sort((a, b) => b.score - a.score);
+/**
+ * Records a run. `distanceKm` is how far north (of the 500km total) the run
+ * got before it ended — 500 for a win. `levelLabel` is which level that
+ * happened in (e.g. "LV3"), or "WIN". The server assigns the timestamp (its
+ * clock, not the player's browser) and an id. Returns the freshly reloaded
+ * full list plus the entry just added (matched by id, for highlighting it
+ * in the UI) — `entry` is null if the save failed.
+ */
+export async function saveScore(name, score, distanceKm, levelLabel) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+    const res = await fetch(API_BASE, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, score, distanceKm, levelLabel }),
+    });
+    if (!res.ok) throw new Error(`POST ${API_BASE} -> ${res.status}`);
+    const entry = await res.json();
+    const entries = await loadLeaderboard();
+    return { entries, entry };
   } catch {
-    // Storage unavailable (private browsing, quota) — leaderboard just won't persist.
+    return { entries: [], entry: null };
   }
-  return { entries, entry };
 }
 
 /** Compact "MM/DD HH:MM" rendering of a stored entry's ISO date, in local time. */

@@ -69,7 +69,12 @@ export class Game {
     this._fpsEl = document.getElementById("fps");
 
     this.score = 0;
-    this.leaderboard = loadLeaderboard();
+    this.leaderboard = [];
+    // Fire-and-forget: the leaderboard is only ever read once we're on the
+    // leaderboard screen, well after this resolves.
+    loadLeaderboard().then((entries) => {
+      this.leaderboard = entries;
+    });
     this._resultPhase = null;
     this._name = "";
     this._lastSavedEntry = null;
@@ -150,6 +155,12 @@ export class Game {
   update(dt) {
     if (this.phase === "enterName") {
       // Typing is handled by the raw keydown listener; nothing to poll per-frame.
+      this.input.endFrame();
+      return;
+    }
+
+    if (this.phase === "savingScore") {
+      // Waiting on the network request in _finalizeName(); nothing to poll per-frame.
       this.input.endFrame();
       return;
     }
@@ -255,12 +266,17 @@ export class Game {
   _finalizeName() {
     const typed = this._name.trim();
     const name = typed.length > 0 ? typed : "PLAYER";
-    const { entries, entry } = saveScore(name, this.score, this._runDistanceKm, this._runLevelLabel);
-    this.leaderboard = entries;
-    this._lastSavedEntry = entry;
-    this.audio.uiConfirm();
-    this.phase = "leaderboard";
+    this.phase = "savingScore";
+    // No more raw-keydown typing to protect once we're off the name-entry
+    // screen; safe to let normal actions (Z to continue) work again.
     this.input.enable();
+
+    saveScore(name, this.score, this._runDistanceKm, this._runLevelLabel).then(({ entries, entry }) => {
+      this.leaderboard = entries;
+      this._lastSavedEntry = entry;
+      this.audio.uiConfirm();
+      this.phase = "leaderboard";
+    });
   }
 
   /**
@@ -341,12 +357,14 @@ export class Game {
       entity.render(ctx, this.camera);
     }
 
-    if (this.phase !== "enterName" && this.phase !== "leaderboard") {
+    if (this.phase !== "enterName" && this.phase !== "savingScore" && this.phase !== "leaderboard") {
       this._renderHud();
     }
 
     if (this.phase === "enterName") {
       this._renderNameEntry();
+    } else if (this.phase === "savingScore") {
+      this._renderSavingScore();
     } else if (this.phase === "leaderboard") {
       this._renderLeaderboard();
     } else if (this.phase !== "playing") {
@@ -455,6 +473,19 @@ export class Game {
     ctx.textAlign = "left";
   }
 
+  _renderSavingScore() {
+    const { ctx } = this;
+
+    ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
+    ctx.fillRect(0, 0, VIEWPORT_WIDTH, VIEWPORT_HEIGHT);
+
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#eafff0";
+    ctx.font = "12px monospace";
+    ctx.fillText("SAVING SCORE...", VIEWPORT_WIDTH / 2, VIEWPORT_HEIGHT / 2);
+    ctx.textAlign = "left";
+  }
+
   _renderLeaderboard() {
     const { ctx } = this;
 
@@ -496,7 +527,7 @@ export class Game {
       ctx.fillText("NO SCORES YET", VIEWPORT_WIDTH / 2, startY);
     } else {
       rows.forEach((entry, i) => {
-        const isThisRun = entry === this._lastSavedEntry;
+        const isThisRun = this._lastSavedEntry != null && entry.id === this._lastSavedEntry.id;
         ctx.fillStyle = isThisRun ? "#ffe066" : "#eafff0";
         const y = startY + i * rowHeight;
         ctx.textAlign = "left";
